@@ -1,0 +1,31 @@
+query GetRepositoryDiscussions(
+  $repo_owner: String!
+  $repo_name: String!
+  $query_cursor: String
+  $query_window: Int
+) {
+  repository(owner: $repo_owner, name: $repo_name) {
+    discussions(
+      after: $query_cursor
+      first: $query_window
+      answered: true
+      orderBy: { field: CREATED_AT, direction: DESC }
+    ) {
+      pageInfo {
+        endCursor
+      }
+      nodes {
+        title
+        body
+        url
+        answer {
+          body
+          publishedAt
+          reactions {
+            totalCount
+          }
+        }
+      }
+    }
+  }
+}
