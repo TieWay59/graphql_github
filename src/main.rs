@@ -1,14 +1,10 @@
+mod config;
 mod log;
 mod query;
 
-use anyhow::Result;
+use anyhow::{Ok, Result};
 use reqwest::{blocking, header};
-
-#[derive(Debug, serde::Deserialize, serde::Serialize)]
-struct Config {
-    token: String,
-    user_agent: String,
-}
+use std::fs;
 
 fn main() -> Result<()> {
     log::set_logger(&log::MY_LOGGER).expect("logger init failed");
@@ -17,7 +13,8 @@ fn main() -> Result<()> {
     log::info!("begin");
 
     // 读取配置构建 reqwest client
-    let Config { token, user_agent } = serde_yaml::from_reader(std::fs::File::open("config.yml")?)?;
+    let config::Config { token, user_agent } = config::load()?;
+
     let auth = format!("bearer {token}");
 
     let client = blocking::Client::builder()
@@ -43,7 +40,7 @@ fn main() -> Result<()> {
 }
 
 fn dump_output(parsed_json: &str, filename: &str) -> Result<()> {
-    use std::{fs, io::Write, path::Path};
+    use std::{io::Write, path::Path};
 
     let output_dir = Path::new("output");
 
