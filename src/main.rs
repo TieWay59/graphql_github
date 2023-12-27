@@ -15,11 +15,9 @@ fn main() -> Result<()> {
     // 读取配置构建 reqwest client
     let config::Config { token, user_agent } = config::load()?;
 
-    let auth = format!("bearer {token}");
-
     let client = blocking::Client::builder()
         .default_headers(header::HeaderMap::from_iter([
-            (header::AUTHORIZATION, auth.parse()?),
+            (header::AUTHORIZATION, format!("bearer {token}").parse()?),
             (header::USER_AGENT, user_agent.parse()?),
         ]))
         // https_only，似乎不选择协议的话，客户端还是会按默认 http。（不明）
