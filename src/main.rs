@@ -16,8 +16,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Hello, world!");
 
     // 读取配置
-    let Config { token, user_agent } =
-        serde_yaml::from_str(&std::fs::read_to_string("config.yml")?)?;
+    let Config { token, user_agent } = serde_yaml::from_reader(std::fs::File::open("config.yml")?)?;
 
     let auth = format!("bearer {token}");
 
