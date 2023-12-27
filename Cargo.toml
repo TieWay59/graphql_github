@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+chrono = "0.4.31"
 graphql_client = { version = "0.13.0", features = [
     "graphql_query_derive",
     "reqwest",

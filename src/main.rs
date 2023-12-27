@@ -1,3 +1,4 @@
+mod log;
 mod query;
 
 use reqwest::{blocking, header};
@@ -9,7 +10,8 @@ struct Config {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    log::set_logger(log::logger()).expect("logger set up failed");
+    log::set_logger(&log::MY_LOGGER).expect("logger init failed");
+    log::set_max_level(log::LevelFilter::Info);
 
     log::info!("begin");
 
