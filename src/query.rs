@@ -1,3 +1,4 @@
+use anyhow::Result;
 use graphql_client::reqwest::post_graphql_blocking;
 use graphql_client::GraphQLQuery;
 use reqwest::blocking;
@@ -18,7 +19,7 @@ type URI = String;
 // 一个 get_repository_discussions 命名的模块会包含进来。
 pub struct GetRepositoryDiscussions;
 
-pub fn operate_query(client: blocking::Client) -> Result<String, Box<dyn std::error::Error>> {
+pub fn operate_query(client: blocking::Client) -> Result<String> {
     // TODO 经过分析我发觉，Variables 是每个任务都不一样的，在 post_graphql_blocking 的时候其实隐含了类型信息。所以不可以抽象成一组高度类似的函数。
     // TODO 下一步是实现循环请求，要考虑 github graphql 的请求上限，需要做一点计算。
 

@@ -1,6 +1,7 @@
 mod log;
 mod query;
 
+use anyhow::Result;
 use reqwest::{blocking, header};
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
@@ -9,7 +10,7 @@ struct Config {
     user_agent: String,
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<()> {
     log::set_logger(&log::MY_LOGGER).expect("logger init failed");
     log::set_max_level(log::LevelFilter::Info);
 
@@ -28,7 +29,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .https_only(true)
         .build()?;
 
+    log::info!("client built");
+
     let parsed_json = query::operate_query(client)?;
+
+    log::info!("query done");
 
     dump_output(&parsed_json, "get_repository_discussions.json")?;
 
@@ -37,7 +42,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn dump_output(parsed_json: &str, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn dump_output(parsed_json: &str, filename: &str) -> Result<()> {
     use std::{fs, io::Write, path::Path};
 
     let output_dir = Path::new("output");
