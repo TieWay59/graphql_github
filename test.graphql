@@ -1,0 +1,26 @@
+{
+  repository(owner: "mermaid-js", name: "mermaid") {
+    discussions(
+      after: "Y3Vyc29yOnYyOpK5MjAyMy0wNi0wM1QwMjowOToyMSswODowMM4AUD8C"
+      first: 3
+      answered: true
+      orderBy: { field: CREATED_AT, direction: DESC }
+    ) {
+      pageInfo {
+        endCursor
+      }
+      nodes {
+        title
+        body
+        url
+        answer {
+          body
+          publishedAt
+          reactions {
+            totalCount
+          }
+        }
+      }
+    }
+  }
+}
