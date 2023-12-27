@@ -22,8 +22,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let auth = format!("bearer {token}");
 
     let headers: HeaderMap = HeaderMap::from_iter([
-        (header::AUTHORIZATION, HeaderValue::from_str(&auth)?),
-        (header::USER_AGENT, HeaderValue::from_str(&user_agent)?),
+        (header::AUTHORIZATION, auth.parse()?),
+        (header::USER_AGENT, user_agent.parse()?),
     ]);
 
     let client = blocking::Client::builder()
