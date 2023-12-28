@@ -4,8 +4,10 @@ mod log;
 mod query;
 mod util;
 
-use anyhow::{Ok, Result};
+use anyhow::{Context, Ok, Result};
 use reqwest::{blocking, header};
+use std::fs::File;
+use std::io::{self, BufRead};
 
 fn main() -> Result<()> {
     log::set_logger(&log::MY_LOGGER).expect("logger init failed");
@@ -27,26 +29,35 @@ fn main() -> Result<()> {
 
     log::info!("client built");
 
-    // TODO 关于目标仓库列表
-    // https://open-leaderboard.x-lab.info/
-    // 我可以先提取一个列表 txt，然后采集任务就从 txt 里面获取列表。
-    // NixOS/nixpkgs
-    let repo_owner = "NixOS";
-    let repo_name = "nixpkgs";
+    let file = File::open("repolist.txt").context("没有找到 repolist.txt")?;
 
-    crawling(repo_owner, repo_name, client)?;
+    io::BufReader::new(file)
+        .lines()
+        .map_while(Result::ok)
+        .filter_map(|line| {
+            let mut it = line.split('/');
+            let repo_owner = it.next()?.to_string();
+            let repo_name = it.next()?.to_string();
+            Some((repo_owner, repo_name))
+        })
+        // 采集任务主体：遍历仓库列表，采集每个仓库的讨论区。
+        .try_for_each(|(repo_owner, repo_name)| {
+            log::info!("crawling {}/{}", repo_owner, repo_name);
+            crawling(&repo_owner, &repo_name, &client)?;
+            Ok(())
+        })?;
 
     log::info!("end");
 
     Ok(())
 }
 
-fn crawling(repo_owner: &str, repo_name: &str, client: blocking::Client) -> Result<()> {
+fn crawling(repo_owner: &str, repo_name: &str, client: &blocking::Client) -> Result<()> {
     let mut query_cursor: Option<String> = None;
 
     for i in 0..5000 {
         let response_data =
-            query::single_query(repo_owner, repo_name, query_cursor.take(), &client).ok();
+            query::single_query(repo_owner, repo_name, query_cursor.take(), client).ok();
 
         let is_empty_page = response_data
             .as_ref()
