@@ -1,6 +1,11 @@
-use anyhow::Result;
+use std::{f32::consts::E, str::FromStr};
+
+use anyhow::{Context, Ok, Result};
 use graphql_client::GraphQLQuery;
-use reqwest::{blocking, header};
+use reqwest::{
+    blocking,
+    header::{self, HeaderMap},
+};
 
 use crate::graphql_client_ext;
 
@@ -19,6 +24,44 @@ type URI = String;
 )]
 // 一个 get_repository_discussions 命名的模块会包含进来。
 pub struct GetRepositoryDiscussions;
+
+struct RateLimit {
+    limit: i32,
+    remaining: i32,
+    used: i32,
+    reset: i32,
+}
+
+impl RateLimit {
+    fn new(limit: i32, remaining: i32, used: i32, reset: i32) -> Self {
+        Self {
+            limit,
+            remaining,
+            used,
+            reset,
+        }
+    }
+}
+
+impl TryFrom<&HeaderMap> for RateLimit {
+    type Error = anyhow::Error;
+
+    fn try_from(headers: &HeaderMap) -> anyhow::Result<Self> {
+        let extract = |hm: &HeaderMap, key: &str| -> Result<i32> {
+            Ok(hm[key]
+                .to_str()?
+                .parse()
+                .context(format!("headers {key} 数值解析失败"))?)
+        };
+
+        Ok(Self::new(
+            extract(headers, "x-ratelimit-limit")?,
+            extract(headers, "x-ratelimit-remaining")?,
+            extract(headers, "x-ratelimit-used")?,
+            extract(headers, "x-ratelimit-reset")?,
+        ))
+    }
+}
 
 pub fn operate_query(client: blocking::Client) -> Result<String> {
     // TODO 经过分析我发觉，Variables 是每个任务都不一样的，在 post_graphql_blocking 的时候其实隐含了类型信息。所以不可以抽象成一组高度类似的函数。
@@ -53,7 +96,17 @@ pub fn operate_query(client: blocking::Client) -> Result<String> {
     )
     .expect("failed to execute query");
 
-    log::info!("headers: {:#?}", headers);
+    let RateLimit {
+        limit,
+        remaining,
+        used,
+        reset,
+    } = (&headers).try_into()?;
+
+    log::info!("limit: {limit}");
+    log::info!("remaining: {remaining}");
+    log::info!("used: {used}");
+    log::info!("reset: {reset}");
 
     let response_data: get_repository_discussions::ResponseData =
         response.data.expect("missing response data");
