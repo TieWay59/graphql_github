@@ -10,11 +10,14 @@
 
 - 0.0.1
 
-  - [ ] 搭建基本的三类任务查询。
+  - [x] 搭建基本的三类任务查询。
     - [x] discussions
-    - [ ] pr
-    - [ ] issues
+    - [x] pr
+    - [x] issues
   - [x] 查询结果先按照 json 文件的形式，以仓库为文件夹存储。（咱不考虑数据库）
     - 命名格式参考： `<owner>/<repo>/discussions/[page_number].json`
 
 - 0.0.2
+
+  - [ ] 寻找合适的数据库列表进行采集。
+    - [Open Leaderboard (x-lab.info)](https://open-leaderboard.x-lab.info/)

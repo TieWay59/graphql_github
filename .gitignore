@@ -1,3 +1,6 @@
 /target
 config.yml
 /output
+
+# 这是为了 tokei 方便统计
+/schemas
