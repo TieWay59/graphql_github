@@ -9,7 +9,8 @@ query GetPRCommits(
       after: $query_cursor
       first: $query_window
       states: MERGED
-      orderBy: { field: CREATED_AT, direction: DESC }
+      # TODO 我又突然想到，这个时间最好是限定的，并且从早开始，因为倒序的话会因为新更新的 issue 而乱掉。
+      orderBy: { field: CREATED_AT, direction: ASC }
     ) {
       pageInfo {
         endCursor

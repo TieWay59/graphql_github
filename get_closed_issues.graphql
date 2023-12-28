@@ -9,7 +9,7 @@ query GetClosedIssues(
       after: $query_cursor
       first: $query_window
       states: CLOSED
-      orderBy: { field: CREATED_AT, direction: DESC }
+      orderBy: { field: CREATED_AT, direction: ASC }
     ) {
       pageInfo {
         endCursor
