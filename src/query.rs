@@ -18,7 +18,7 @@ type URI = String;
 #[graphql(
     schema_path = "schemas/schema.docs.graphql",
     query_path = "get_repository_discussions.graphql",
-    response_derives = "Debug, Serialize, Deserialize"
+    response_derives = "Debug, Serialize, Deserialize, Clone"
 )]
 // 一个 get_repository_discussions 命名的模块会包含进来。
 pub struct GetRepositoryDiscussions;

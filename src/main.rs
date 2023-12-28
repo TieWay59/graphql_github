@@ -32,17 +32,33 @@ fn main() -> Result<()> {
     let mut query_cursor: Option<String> = None;
 
     // TODO 这里这个循环要进一步修改。
-    for i in 0..1 {
+    for i in 0..2 {
         let response_data =
-            query::single_query(repo_owner, repo_name, query_cursor.take(), &client)?;
-        
+            query::single_query(repo_owner, repo_name, query_cursor.take(), &client).ok();
+
+        query_cursor = response_data
+            .as_ref()
+            .and_then(|response_data| response_data.repository.as_ref())
+            .and_then(|repo| repo.discussions.page_info.end_cursor.clone());
+
+        let has_next_page = response_data
+            .as_ref()
+            .and_then(|response_data| response_data.repository.as_ref())
+            .map_or(false, |repo| repo.discussions.page_info.has_next_page);
+
         let parsed_json = serde_json::to_string(&response_data)?;
 
-        log::info!("response_data length: {}", parsed_json.len());
+        log::info!("step {i:03} response_data length: {}", parsed_json.len());
 
-        dump_output(&parsed_json, "get_repository_discussions.json")?;
+        dump_output(
+            &parsed_json,
+            format!("{repo_owner}_{repo_name}_{i:03}_repository_discussions.json").as_str(),
+        )?;
 
-        // TODO UPD  query_cursor = Some(todo!());
+        if !has_next_page {
+            log::info!("{repo_owner}/{repo_name} has_next_page: false");
+            break;
+        }
     }
 
     log::info!("end");
