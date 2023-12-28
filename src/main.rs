@@ -66,8 +66,7 @@ fn crawling(
 ) -> Result<()> {
     let mut cursor: Option<String> = None;
 
-    // TODO 测试阶段，先都只采集小的。
-    for i in 0..2 {
+    for i in 0..5000 {
         // 静态分发调用函数。
         let query::QueryResult {
             is_empty_page,
