@@ -83,7 +83,7 @@ fn crawling(
                 query::single_pr_commits_query(repo_owner, repo_name, &cursor, client)?
             }
             TaskType::ClosedIssues => {
-                query::single_closed_issues_query(repo_owner, repo_name, &cursor, client)?
+                query::single_issues_query(repo_owner, repo_name, &cursor, client)?
             }
         };
 
