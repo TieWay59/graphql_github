@@ -4,7 +4,7 @@ use std::time::Duration;
 use std::{fs, thread};
 use std::{io::Write, path::Path};
 
-#[allow(unused)]
+#[derive(Debug, Clone, Copy)]
 pub enum TaskType {
     Discussion,
     Issue,
@@ -34,7 +34,7 @@ pub fn dump_output(
         .join(task_type.to_string())
         .join(format!(
             "{window_number:03}_{}.json",
-            id.as_ref().unwrap_or(&"first_cursor".to_string())
+            id.clone().unwrap_or("first_cursor".to_string())
         ));
 
     if !full_path.exists() {
