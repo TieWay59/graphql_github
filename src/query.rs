@@ -7,7 +7,7 @@ use crate::graphql_client_ext;
 use crate::util;
 
 pub enum QueryResponseData {
-    Discussion(get_repository_discussions::ResponseData),
+    Discussions(get_repository_discussions::ResponseData),
     PRCommits(get_pr_commits::ResponseData),
     ClosedIssues(get_closed_issues::ResponseData),
 }
@@ -91,7 +91,7 @@ pub fn single_discussion_query(
         has_next_page,
         query_cursor,
         rate_limit,
-        response_data: QueryResponseData::Discussion(response_data),
+        response_data: QueryResponseData::Discussions(response_data),
     })
 }
 

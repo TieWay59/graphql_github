@@ -6,16 +6,16 @@ use std::{io::Write, path::Path};
 
 #[derive(Debug, Clone, Copy)]
 pub enum TaskType {
-    Discussion,
-    Issue,
+    Discussions,
+    ClosedIssues,
     PRCommits,
 }
 
 impl std::fmt::Display for TaskType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match *self {
-            TaskType::Discussion => write!(f, "discussion"),
-            TaskType::Issue => write!(f, "issue"),
+            TaskType::Discussions => write!(f, "discussion"),
+            TaskType::ClosedIssues => write!(f, "issue"),
             TaskType::PRCommits => write!(f, "pull_request"),
         }
     }

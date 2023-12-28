@@ -48,8 +48,8 @@ fn main() -> Result<()> {
         .try_for_each(|(repo_owner, repo_name)| {
             log::info!("crawling {}/{}", repo_owner, repo_name);
             crawling(&repo_owner, &repo_name, &client, TaskType::PRCommits)?;
-            crawling(&repo_owner, &repo_name, &client, TaskType::Discussion)?;
-            crawling(&repo_owner, &repo_name, &client, TaskType::Issue)?;
+            crawling(&repo_owner, &repo_name, &client, TaskType::Discussions)?;
+            crawling(&repo_owner, &repo_name, &client, TaskType::ClosedIssues)?;
             Ok(())
         })?;
 
@@ -76,13 +76,13 @@ fn crawling(
             query_cursor,
             response_data: query_response_data,
         } = match task_type {
-            TaskType::Discussion => {
+            TaskType::Discussions => {
                 query::single_discussion_query(repo_owner, repo_name, &cursor, client)?
             }
             TaskType::PRCommits => {
                 query::single_pr_commits_query(repo_owner, repo_name, &cursor, client)?
             }
-            TaskType::Issue => {
+            TaskType::ClosedIssues => {
                 query::single_closed_issues_query(repo_owner, repo_name, &cursor, client)?
             }
         };
@@ -98,7 +98,7 @@ fn crawling(
             // 表面上看起来都一样，实际上每个 data 类型都不同。
             use query::QueryResponseData::*;
             match query_response_data {
-                Discussion(response_data) => serde_json::to_string(&response_data)?,
+                Discussions(response_data) => serde_json::to_string(&response_data)?,
                 PRCommits(response_data) => serde_json::to_string(&response_data)?,
                 ClosedIssues(response_data) => serde_json::to_string(&response_data)?,
             }
