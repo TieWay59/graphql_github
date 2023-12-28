@@ -27,8 +27,12 @@ fn main() -> Result<()> {
 
     log::info!("client built");
 
-    let repo_owner = "mermaid-js";
-    let repo_name = "mermaid";
+    // TODO 关于目标仓库列表
+    // https://open-leaderboard.x-lab.info/
+    // 我可以先提取一个列表 txt，然后采集任务就从 txt 里面获取列表。
+    // NixOS/nixpkgs
+    let repo_owner = "NixOS";
+    let repo_name = "nixpkgs";
     let mut query_cursor: Option<String> = None;
 
     // TODO 这里这个循环要进一步修改。
@@ -36,10 +40,16 @@ fn main() -> Result<()> {
         let response_data =
             query::single_query(repo_owner, repo_name, query_cursor.take(), &client).ok();
 
-        let has_next_page = response_data
+        let is_empty_page = response_data
             .as_ref()
             .and_then(|response_data| response_data.repository.as_ref())
-            .map_or(false, |repo| repo.discussions.page_info.has_next_page);
+            .and_then(|repo| repo.discussions.nodes.as_ref())
+            .map_or(true, |nodes| nodes.is_empty());
+
+        if is_empty_page {
+            log::info!("{repo_owner}/{repo_name} is_empty_page: true");
+            break;
+        }
 
         let parsed_json = serde_json::to_string(&response_data)?;
 
@@ -53,6 +63,11 @@ fn main() -> Result<()> {
             &query_cursor,
             i,
         )?;
+
+        let has_next_page = response_data
+            .as_ref()
+            .and_then(|response_data| response_data.repository.as_ref())
+            .map_or(false, |repo| repo.discussions.page_info.has_next_page);
 
         if !has_next_page {
             log::info!("{repo_owner}/{repo_name} has_next_page: false");
