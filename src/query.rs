@@ -7,7 +7,7 @@ use reqwest::{
     header::{self, HeaderMap},
 };
 
-use crate::graphql_client_ext;
+use crate::{graphql_client_ext, query};
 
 // TODO: 暂时不知道为什么，但是 https://github.com/graphql-rust/graphql-client/blob/main/examples/github/examples/github.rs 案例中这样写。
 #[allow(clippy::upper_case_acronyms)]
@@ -64,12 +64,24 @@ impl TryFrom<&HeaderMap> for RateLimit {
     }
 }
 
-pub fn single_query(
+pub enum QueryResponseData {
+    Discussion(get_repository_discussions::ResponseData),
+}
+
+pub struct QueryResult {
+    pub is_empty_page: bool,
+    pub has_next_page: bool,
+    pub query_cursor: Option<String>,
+    pub response_data: QueryResponseData,
+}
+
+pub fn single_discussion_query(
     repo_owner: &str,
     repo_name: &str,
     query_cursor: Option<String>,
     client: &blocking::Client,
-) -> Result<get_repository_discussions::ResponseData> {
+) -> Result<QueryResult> {
+    // discussion 的查询变量
     let variables = get_repository_discussions::Variables {
         repo_owner: repo_owner.into(),
         repo_name: repo_name.into(),
@@ -82,6 +94,7 @@ pub fn single_query(
 
     let mut headers = header::HeaderMap::new();
 
+    // discussion 的特化查询
     let response = graphql_client_ext::post_graphql_blocking::<GetRepositoryDiscussions, _>(
         client,
         "https://api.github.com/graphql",
@@ -102,7 +115,7 @@ pub fn single_query(
     log::info!("limit: ({used}/{limit}) remaining: {remaining} reset: {reset}");
 
     if remaining < 2 {
-        log::warn!("remaining < 2");
+        log::warn!("remaining < 2, 开始休眠 {remaining}s");
         thread::sleep(Duration::from_secs(remaining as u64));
     } else {
         // github 限制 gql 查询次数 5000/h
@@ -112,5 +125,33 @@ pub fn single_query(
         thread::sleep(Duration::from_millis(rand::random::<u64>() % 100 + 650));
     }
 
-    response.data.context("missing response data")
+    let response_data = response.data.context("missing response data")?;
+
+    let is_empty_page = response_data
+        .repository
+        .as_ref()
+        .and_then(|repo| repo.discussions.nodes.as_ref())
+        .map_or(true, |nodes| nodes.is_empty());
+
+    let has_next_page = response_data
+        .repository
+        .as_ref()
+        .map_or(false, |repo| repo.discussions.page_info.has_next_page);
+
+    let query_cursor = if has_next_page {
+        // TODO 其实我有个怀疑，end cursor 真的能用作下一次查询的起点么？会不会有问题？
+        response_data
+            .repository
+            .as_ref()
+            .and_then(|repo| repo.discussions.page_info.end_cursor.clone())
+    } else {
+        None
+    };
+
+    Ok(QueryResult {
+        is_empty_page,
+        has_next_page,
+        query_cursor,
+        response_data: QueryResponseData::Discussion(response_data),
+    })
 }

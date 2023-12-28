@@ -43,7 +43,7 @@ fn main() -> Result<()> {
         // 采集任务主体：遍历仓库列表，采集每个仓库的讨论区。
         .try_for_each(|(repo_owner, repo_name)| {
             log::info!("crawling {}/{}", repo_owner, repo_name);
-            crawling(&repo_owner, &repo_name, &client)?;
+            crawling_discussion(&repo_owner, &repo_name, &client)?;
             Ok(())
         })?;
 
@@ -52,51 +52,47 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn crawling(repo_owner: &str, repo_name: &str, client: &blocking::Client) -> Result<()> {
-    let mut query_cursor: Option<String> = None;
-
+fn crawling_discussion(repo_owner: &str, repo_name: &str, client: &blocking::Client) -> Result<()> {
+    let mut cursor: Option<String> = None;
+    use query::QueryResponseData::Discussion;
     for i in 0..5000 {
-        let response_data =
-            query::single_query(repo_owner, repo_name, query_cursor.take(), client).ok();
+        let query::QueryResult {
+            is_empty_page,
+            has_next_page,
+            query_cursor,
+            // TODO 目前这个文件唯一和 discussion 有关的地方就是这里和下面的 single_query
+            response_data: Discussion(response_data),
+        } = query::single_discussion_query(repo_owner, repo_name, cursor.take(), client)?;
 
-        let is_empty_page = response_data
-            .as_ref()
-            .and_then(|response_data| response_data.repository.as_ref())
-            .and_then(|repo| repo.discussions.nodes.as_ref())
-            .map_or(true, |nodes| nodes.is_empty());
-
+        // 如果是空页，就不用再继续了。
         if is_empty_page {
             log::info!("{repo_owner}/{repo_name} is_empty_page: true");
             break;
         }
 
+        // 序列化为 json
         let parsed_json = serde_json::to_string(&response_data)?;
 
         log::info!("step {i:03} response_data length: {}", parsed_json.len());
 
+        // 写入文件
         util::dump_output(
             &parsed_json,
             repo_owner,
             repo_name,
             util::TaskType::Discussion,
-            &query_cursor,
+            &cursor,
             i,
         )?;
 
-        let has_next_page = response_data
-            .as_ref()
-            .and_then(|response_data| response_data.repository.as_ref())
-            .map_or(false, |repo| repo.discussions.page_info.has_next_page);
-
+        // 如果没有下一页，就不用再继续了。
         if !has_next_page {
             log::info!("{repo_owner}/{repo_name} has_next_page: false");
             break;
         }
 
-        query_cursor = response_data
-            .as_ref()
-            .and_then(|response_data| response_data.repository.as_ref())
-            .and_then(|repo| repo.discussions.page_info.end_cursor.clone());
+        // 如果有下一页，就继续。
+        cursor = query_cursor;
     }
 
     Ok(())
