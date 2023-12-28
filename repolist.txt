@@ -1,2 +1,3 @@
-mermaid-js/mermaid
-NixOS/nixpkgs
+hypertrons/hypertrons-crx
+# mermaid-js/mermaid
+# NixOS/nixpkgs

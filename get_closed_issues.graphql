@@ -1,0 +1,35 @@
+query GetClosedIssues(
+  $repo_owner: String!
+  $repo_name: String!
+  $query_cursor: String
+  $query_window: Int
+) {
+  repository(owner: $repo_owner, name: $repo_name) {
+    issues(
+      after: $query_cursor
+      first: $query_window
+      states: CLOSED
+      orderBy: { field: CREATED_AT, direction: DESC }
+    ) {
+      pageInfo {
+        endCursor
+        hasNextPage
+      }
+      nodes {
+        stateReason
+        number
+        url
+        bodyText
+        comments(first: 50) {
+          nodes {
+            bodyText
+          }
+        }
+      }
+    }
+  }
+}
+# - TODO 这里有个难点，就是 `stateReason: complete` 标签的 issue 目前 github 还没有释放出 api 提供给用户，所以需要客户端过滤。
+#   - 一种可行的方案是借助 PR 的 `closingIssuesReferences` 信息二次查询。
+#   - 还有一种可行的方案就是在 GA 写 SQL 获取。
+#

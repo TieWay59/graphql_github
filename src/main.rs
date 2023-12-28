@@ -6,7 +6,6 @@ mod util;
 
 use anyhow::{Context, Ok, Result};
 use reqwest::{blocking, header};
-use std::borrow::Borrow;
 use std::fs::File;
 use std::io::{self, BufRead};
 use util::TaskType;
@@ -37,6 +36,9 @@ fn main() -> Result<()> {
         .lines()
         .map_while(Result::ok)
         .filter_map(|line| {
+            if line.starts_with('#') {
+                return None;
+            }
             let mut it = line.split('/');
             let repo_owner = it.next()?.to_string();
             let repo_name = it.next()?.to_string();
@@ -47,6 +49,7 @@ fn main() -> Result<()> {
             log::info!("crawling {}/{}", repo_owner, repo_name);
             crawling(&repo_owner, &repo_name, &client, TaskType::PRCommits)?;
             crawling(&repo_owner, &repo_name, &client, TaskType::Discussion)?;
+            crawling(&repo_owner, &repo_name, &client, TaskType::Issue)?;
             Ok(())
         })?;
 
@@ -74,12 +77,14 @@ fn crawling(
             response_data: query_response_data,
         } = match task_type {
             TaskType::Discussion => {
-                query::single_discussion_query(repo_owner, repo_name, cursor.take(), client)?
+                query::single_discussion_query(repo_owner, repo_name, &cursor, client)?
             }
             TaskType::PRCommits => {
-                query::single_pr_commits_query(repo_owner, repo_name, cursor.take(), client)?
+                query::single_pr_commits_query(repo_owner, repo_name, &cursor, client)?
             }
-            _ => unreachable!(),
+            TaskType::Issue => {
+                query::single_closed_issues_query(repo_owner, repo_name, &cursor, client)?
+            }
         };
 
         // 如果是空页，就不用再继续了。
@@ -95,20 +100,17 @@ fn crawling(
             match query_response_data {
                 Discussion(response_data) => serde_json::to_string(&response_data)?,
                 PRCommits(response_data) => serde_json::to_string(&response_data)?,
+                ClosedIssues(response_data) => serde_json::to_string(&response_data)?,
             }
         };
 
-        log::info!("step {i:03} response_data length: {}", parsed_json.len());
+        log::info!(
+            "[{task_type}] [{repo_owner}] [{repo_name}] step {i:03} parsed_json length: {}",
+            parsed_json.len()
+        );
 
-        // 写入文件
-        util::dump_output(
-            &parsed_json,
-            repo_owner,
-            repo_name,
-            util::TaskType::Discussion,
-            &cursor,
-            i,
-        )?;
+        // 写入文件还是用的老 cursor，拿这个 Option string 没办法。
+        util::dump_output(&parsed_json, repo_owner, repo_name, task_type, &cursor, i)?;
 
         // 检查 rate limit 是否超速
         util::check_limit_and_block(rate_limit);
