@@ -2,10 +2,10 @@ mod config;
 mod graphql_client_ext;
 mod log;
 mod query;
+mod util;
 
 use anyhow::{Ok, Result};
 use reqwest::{blocking, header};
-use std::fs;
 
 fn main() -> Result<()> {
     log::set_logger(&log::MY_LOGGER).expect("logger init failed");
@@ -36,11 +36,6 @@ fn main() -> Result<()> {
         let response_data =
             query::single_query(repo_owner, repo_name, query_cursor.take(), &client).ok();
 
-        query_cursor = response_data
-            .as_ref()
-            .and_then(|response_data| response_data.repository.as_ref())
-            .and_then(|repo| repo.discussions.page_info.end_cursor.clone());
-
         let has_next_page = response_data
             .as_ref()
             .and_then(|response_data| response_data.repository.as_ref())
@@ -50,35 +45,27 @@ fn main() -> Result<()> {
 
         log::info!("step {i:03} response_data length: {}", parsed_json.len());
 
-        dump_output(
+        util::dump_output(
             &parsed_json,
-            format!("{repo_owner}_{repo_name}_{i:03}_repository_discussions.json").as_str(),
+            repo_owner,
+            repo_name,
+            util::TaskType::Discussion,
+            &query_cursor,
+            i,
         )?;
 
         if !has_next_page {
             log::info!("{repo_owner}/{repo_name} has_next_page: false");
             break;
         }
+
+        query_cursor = response_data
+            .as_ref()
+            .and_then(|response_data| response_data.repository.as_ref())
+            .and_then(|repo| repo.discussions.page_info.end_cursor.clone());
     }
 
     log::info!("end");
-
-    Ok(())
-}
-
-fn dump_output(parsed_json: &str, filename: &str) -> Result<()> {
-    use std::{io::Write, path::Path};
-
-    let output_dir = Path::new("output");
-
-    if fs::read_dir(output_dir).is_err() {
-        fs::create_dir(output_dir)?;
-    };
-
-    fs::File::create(output_dir.join(Path::new(filename)))
-        .expect("文件打开失败")
-        .write_all(parsed_json.to_string().as_bytes())
-        .expect("文件写入失败");
 
     Ok(())
 }
