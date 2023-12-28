@@ -6,8 +6,10 @@ mod util;
 
 use anyhow::{Context, Ok, Result};
 use reqwest::{blocking, header};
+use std::borrow::Borrow;
 use std::fs::File;
 use std::io::{self, BufRead};
+use util::TaskType;
 
 fn main() -> Result<()> {
     log::set_logger(&log::MY_LOGGER).expect("logger init failed");
@@ -43,7 +45,8 @@ fn main() -> Result<()> {
         // 采集任务主体：遍历仓库列表，采集每个仓库的讨论区。
         .try_for_each(|(repo_owner, repo_name)| {
             log::info!("crawling {}/{}", repo_owner, repo_name);
-            crawling_discussion(&repo_owner, &repo_name, &client)?;
+            crawling(&repo_owner, &repo_name, &client, TaskType::PRCommits)?;
+            crawling(&repo_owner, &repo_name, &client, TaskType::Discussion)?;
             Ok(())
         })?;
 
@@ -52,18 +55,32 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn crawling_discussion(repo_owner: &str, repo_name: &str, client: &blocking::Client) -> Result<()> {
+fn crawling(
+    repo_owner: &str,
+    repo_name: &str,
+    client: &blocking::Client,
+    task_type: TaskType,
+) -> Result<()> {
     let mut cursor: Option<String> = None;
-    use query::QueryResponseData::Discussion;
-    for i in 0..5000 {
+
+    // TODO 测试阶段，先都只采集小的。
+    for i in 0..2 {
+        // 静态分发调用函数。
         let query::QueryResult {
             is_empty_page,
             has_next_page,
             rate_limit,
             query_cursor,
-            // TODO 目前这个文件唯一和 discussion 有关的地方就是这里和下面的 single_query
-            response_data: Discussion(response_data),
-        } = query::single_discussion_query(repo_owner, repo_name, cursor.take(), client)?;
+            response_data: query_response_data,
+        } = match task_type {
+            TaskType::Discussion => {
+                query::single_discussion_query(repo_owner, repo_name, cursor.take(), client)?
+            }
+            TaskType::PRCommits => {
+                query::single_pr_commits_query(repo_owner, repo_name, cursor.take(), client)?
+            }
+            _ => unreachable!(),
+        };
 
         // 如果是空页，就不用再继续了。
         if is_empty_page {
@@ -71,8 +88,15 @@ fn crawling_discussion(repo_owner: &str, repo_name: &str, client: &blocking::Cli
             break;
         }
 
-        // 序列化为 json
-        let parsed_json = serde_json::to_string(&response_data)?;
+        let parsed_json = {
+            // 静态分发序列化函数
+            // 表面上看起来都一样，实际上每个 data 类型都不同。
+            use query::QueryResponseData::*;
+            match query_response_data {
+                Discussion(response_data) => serde_json::to_string(&response_data)?,
+                PRCommits(response_data) => serde_json::to_string(&response_data)?,
+            }
+        };
 
         log::info!("step {i:03} response_data length: {}", parsed_json.len());
 

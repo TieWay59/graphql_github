@@ -8,7 +8,7 @@ use std::{io::Write, path::Path};
 pub enum TaskType {
     Discussion,
     Issue,
-    PullRequest,
+    PRCommits,
 }
 
 impl std::fmt::Display for TaskType {
@@ -16,7 +16,7 @@ impl std::fmt::Display for TaskType {
         match *self {
             TaskType::Discussion => write!(f, "discussion"),
             TaskType::Issue => write!(f, "issue"),
-            TaskType::PullRequest => write!(f, "pull_request"),
+            TaskType::PRCommits => write!(f, "pull_request"),
         }
     }
 }
