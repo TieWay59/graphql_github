@@ -25,6 +25,7 @@ type URI = String;
 // 一个 get_repository_discussions 命名的模块会包含进来。
 pub struct GetRepositoryDiscussions;
 
+/// 参考 https://docs.github.com/en/graphql/overview/rate-limits-and-node-limits-for-the-graphql-api
 struct RateLimit {
     limit: i32,
     remaining: i32,
@@ -98,16 +99,18 @@ pub fn single_query(
         reset,
     } = (&headers).try_into()?;
 
-    log::info!("limit: {limit}");
-    log::info!("remaining: {remaining}");
-    log::info!("used: {used}");
-    log::info!("reset: {reset}");
+    log::info!("limit: ({used}/{limit}) remaining: {remaining} reset: {reset}");
 
-    // github 限制 gql 查询次数 5000/h
-    // 算一下 5000 / 60 / 60 = 1.38/s
-    // 1 / 1.38 = 0.72s 可以发一个请求，我感觉可以设置 sleep 650-750 ms。
-    // 考虑上中间的延迟，基本上会不太可能超过限制。
-    thread::sleep(Duration::from_millis(rand::random::<u64>() % 100 + 650));
+    if remaining < 2 {
+        log::warn!("remaining < 2");
+        thread::sleep(Duration::from_secs(remaining as u64));
+    } else {
+        // github 限制 gql 查询次数 5000/h
+        // 算一下 5000 / 60 / 60 = 1.38/s
+        // 1 / 1.38 = 0.72s 可以发一个请求，我感觉可以设置 sleep 650-750 ms。
+        // 考虑上中间的延迟，基本上会不太可能超过限制。
+        thread::sleep(Duration::from_millis(rand::random::<u64>() % 100 + 650));
+    }
 
     response.data.context("missing response data")
 }
