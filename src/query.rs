@@ -1,7 +1,8 @@
 use anyhow::Result;
-use graphql_client::reqwest::post_graphql_blocking;
 use graphql_client::GraphQLQuery;
-use reqwest::blocking;
+use reqwest::{blocking, header};
+
+use crate::graphql_client_ext;
 
 // TODO: 暂时不知道为什么，但是 https://github.com/graphql-rust/graphql-client/blob/main/examples/github/examples/github.rs 案例中这样写。
 #[allow(clippy::upper_case_acronyms)]
@@ -31,14 +32,31 @@ pub fn operate_query(client: blocking::Client) -> Result<String> {
         query_window: Some(3),
     };
 
-    let response_data = post_graphql_blocking::<GetRepositoryDiscussions, _>(
+    // 关注以下几个字段就可以计算出剩余流量：
+    //
+    // x-ratelimit-limit	    The maximum number of points that you can use per hour
+    // x-ratelimit-remaining	The number of points remaining in the current rate limit window
+    // x-ratelimit-used	        The number of points you have used in the current rate limit window
+    // x-ratelimit-reset	    The time at which the current rate limit window resets, in UTC epoch seconds
+    // x-ratelimit-resource	    The rate limit resource that the request counted against. For GraphQL requests, this will always be graphql.
+    //
+    //  ref: https://docs.github.com/en/graphql/overview/rate-limits-and-node-limits-for-the-graphql-api
+    let mut headers = header::HeaderMap::new();
+
+    let response = graphql_client_ext::post_graphql_blocking::<GetRepositoryDiscussions, _>(
         &client,
         "https://api.github.com/graphql",
         variables,
+        |h| {
+            headers = h.clone();
+        },
     )
-    .expect("failed to execute query")
-    .data
-    .expect("missing response data");
+    .expect("failed to execute query");
+
+    log::info!("headers: {:#?}", headers);
+
+    let response_data: get_repository_discussions::ResponseData =
+        response.data.expect("missing response data");
 
     Ok(serde_json::to_string(&response_data)?)
 }

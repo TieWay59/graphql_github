@@ -1,4 +1,5 @@
 mod config;
+mod graphql_client_ext;
 mod log;
 mod query;
 
