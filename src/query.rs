@@ -1,3 +1,5 @@
+use std::{thread, time::Duration};
+
 use anyhow::{Context, Ok, Result};
 use graphql_client::GraphQLQuery;
 use reqwest::{
@@ -100,6 +102,12 @@ pub fn single_query(
     log::info!("remaining: {remaining}");
     log::info!("used: {used}");
     log::info!("reset: {reset}");
+
+    // github 限制 gql 查询次数 5000/h
+    // 算一下 5000 / 60 / 60 = 1.38/s
+    // 1 / 1.38 = 0.72s 可以发一个请求，我感觉可以设置 sleep 650-750 ms。
+    // 考虑上中间的延迟，基本上会不太可能超过限制。
+    thread::sleep(Duration::from_millis(rand::random::<u64>() % 100 + 650));
 
     response.data.context("missing response data")
 }
