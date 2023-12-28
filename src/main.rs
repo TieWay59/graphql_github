@@ -59,6 +59,7 @@ fn crawling_discussion(repo_owner: &str, repo_name: &str, client: &blocking::Cli
         let query::QueryResult {
             is_empty_page,
             has_next_page,
+            rate_limit,
             query_cursor,
             // TODO 目前这个文件唯一和 discussion 有关的地方就是这里和下面的 single_query
             response_data: Discussion(response_data),
@@ -84,6 +85,9 @@ fn crawling_discussion(repo_owner: &str, repo_name: &str, client: &blocking::Cli
             &cursor,
             i,
         )?;
+
+        // 检查 rate limit 是否超速
+        util::check_limit_and_block(rate_limit);
 
         // 如果没有下一页，就不用再继续了。
         if !has_next_page {

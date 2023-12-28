@@ -7,13 +7,13 @@ pub fn post_graphql_blocking<Q: GraphQLQuery, U: reqwest::IntoUrl>(
     url: U,
     variables: Q::Variables,
     // 目前只是一个粗略的实现，由于源库年久失修，这个
-    mut f: impl FnMut(&reqwest::header::HeaderMap),
+    mut f: impl FnMut(&reqwest::header::HeaderMap) -> anyhow::Result<()>,
 ) -> Result<graphql_client::Response<Q::ResponseData>, reqwest::Error> {
     let body = Q::build_query(variables);
     let reqwest_response = client.post(url).json(&body).send()?;
 
     // take response headers out
-    f(reqwest_response.headers());
+    let _ = f(reqwest_response.headers());
 
     reqwest_response.json()
 }

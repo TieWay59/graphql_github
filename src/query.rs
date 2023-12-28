@@ -1,13 +1,9 @@
-use std::{thread, time::Duration};
-
 use anyhow::{Context, Ok, Result};
 use graphql_client::GraphQLQuery;
-use reqwest::{
-    blocking,
-    header::{self, HeaderMap},
-};
+use reqwest::blocking;
 
-use crate::{graphql_client_ext, query};
+use crate::graphql_client_ext;
+use crate::util;
 
 // TODO: 暂时不知道为什么，但是 https://github.com/graphql-rust/graphql-client/blob/main/examples/github/examples/github.rs 案例中这样写。
 #[allow(clippy::upper_case_acronyms)]
@@ -25,45 +21,6 @@ type URI = String;
 // 一个 get_repository_discussions 命名的模块会包含进来。
 pub struct GetRepositoryDiscussions;
 
-/// 参考 https://docs.github.com/en/graphql/overview/rate-limits-and-node-limits-for-the-graphql-api
-struct RateLimit {
-    limit: i32,
-    remaining: i32,
-    used: i32,
-    reset: i32,
-}
-
-impl RateLimit {
-    fn new(limit: i32, remaining: i32, used: i32, reset: i32) -> Self {
-        Self {
-            limit,
-            remaining,
-            used,
-            reset,
-        }
-    }
-}
-
-impl TryFrom<&HeaderMap> for RateLimit {
-    type Error = anyhow::Error;
-
-    fn try_from(headers: &HeaderMap) -> anyhow::Result<Self> {
-        let extract = |hm: &HeaderMap, key: &str| -> Result<i32> {
-            Ok(hm[key]
-                .to_str()?
-                .parse()
-                .context(format!("headers {key} 数值解析失败"))?)
-        };
-
-        Ok(Self::new(
-            extract(headers, "x-ratelimit-limit")?,
-            extract(headers, "x-ratelimit-remaining")?,
-            extract(headers, "x-ratelimit-used")?,
-            extract(headers, "x-ratelimit-reset")?,
-        ))
-    }
-}
-
 pub enum QueryResponseData {
     Discussion(get_repository_discussions::ResponseData),
 }
@@ -71,6 +28,7 @@ pub enum QueryResponseData {
 pub struct QueryResult {
     pub is_empty_page: bool,
     pub has_next_page: bool,
+    pub rate_limit: util::RateLimit,
     pub query_cursor: Option<String>,
     pub response_data: QueryResponseData,
 }
@@ -92,7 +50,7 @@ pub fn single_discussion_query(
         query_window: Some(100),
     };
 
-    let mut headers = header::HeaderMap::new();
+    let mut rate_limit = util::RateLimit::default();
 
     // discussion 的特化查询
     let response = graphql_client_ext::post_graphql_blocking::<GetRepositoryDiscussions, _>(
@@ -100,33 +58,16 @@ pub fn single_discussion_query(
         "https://api.github.com/graphql",
         variables,
         |h| {
-            headers = h.clone();
+            // TODO 仔细一想其实这里也可以检查 其他 head 情况。
+            rate_limit = h.try_into()?;
+            Ok(())
         },
     )
     .expect("failed to execute query");
 
-    let RateLimit {
-        limit,
-        remaining,
-        used,
-        reset,
-    } = (&headers).try_into()?;
-
-    log::info!("limit: ({used}/{limit}) remaining: {remaining} reset: {reset}");
-
-    if remaining < 2 {
-        log::warn!("remaining < 2, 开始休眠 {remaining}s");
-        thread::sleep(Duration::from_secs(remaining as u64));
-    } else {
-        // github 限制 gql 查询次数 5000/h
-        // 算一下 5000 / 60 / 60 = 1.38/s
-        // 1 / 1.38 = 0.72s 可以发一个请求，我感觉可以设置 sleep 650-750 ms。
-        // 考虑上中间的延迟，基本上会不太可能超过限制。
-        thread::sleep(Duration::from_millis(rand::random::<u64>() % 100 + 650));
-    }
-
     let response_data = response.data.context("missing response data")?;
 
+    // 这里有实质上的
     let is_empty_page = response_data
         .repository
         .as_ref()
@@ -152,6 +93,7 @@ pub fn single_discussion_query(
         is_empty_page,
         has_next_page,
         query_cursor,
+        rate_limit,
         response_data: QueryResponseData::Discussion(response_data),
     })
 }
