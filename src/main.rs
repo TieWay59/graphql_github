@@ -33,10 +33,18 @@ fn main() -> Result<()> {
     // NixOS/nixpkgs
     let repo_owner = "NixOS";
     let repo_name = "nixpkgs";
+
+    crawling(repo_owner, repo_name, client)?;
+
+    log::info!("end");
+
+    Ok(())
+}
+
+fn crawling(repo_owner: &str, repo_name: &str, client: blocking::Client) -> Result<()> {
     let mut query_cursor: Option<String> = None;
 
-    // TODO 这里这个循环要进一步修改。
-    for i in 0..2 {
+    for i in 0..5000 {
         let response_data =
             query::single_query(repo_owner, repo_name, query_cursor.take(), &client).ok();
 
@@ -79,8 +87,6 @@ fn main() -> Result<()> {
             .and_then(|response_data| response_data.repository.as_ref())
             .and_then(|repo| repo.discussions.page_info.end_cursor.clone());
     }
-
-    log::info!("end");
 
     Ok(())
 }

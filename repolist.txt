@@ -1,0 +1,2 @@
+mermaid-js/mermaid
+NixOS/nixpkgs
