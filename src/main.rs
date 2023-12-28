@@ -27,11 +27,23 @@ fn main() -> Result<()> {
 
     log::info!("client built");
 
-    let parsed_json = query::operate_query(client)?;
+    let repo_owner = "mermaid-js";
+    let repo_name = "mermaid";
+    let mut query_cursor: Option<String> = None;
 
-    log::info!("query done");
+    // TODO 这里这个循环要进一步修改。
+    for i in 0..1 {
+        let response_data =
+            query::single_query(repo_owner, repo_name, query_cursor.take(), &client)?;
+        
+        let parsed_json = serde_json::to_string(&response_data)?;
 
-    dump_output(&parsed_json, "get_repository_discussions.json")?;
+        log::info!("response_data length: {}", parsed_json.len());
+
+        dump_output(&parsed_json, "get_repository_discussions.json")?;
+
+        // TODO UPD  query_cursor = Some(todo!());
+    }
 
     log::info!("end");
 

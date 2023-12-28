@@ -1,5 +1,3 @@
-use std::{f32::consts::E, str::FromStr};
-
 use anyhow::{Context, Ok, Result};
 use graphql_client::GraphQLQuery;
 use reqwest::{
@@ -63,31 +61,26 @@ impl TryFrom<&HeaderMap> for RateLimit {
     }
 }
 
-pub fn operate_query(client: blocking::Client) -> Result<String> {
-    // TODO 经过分析我发觉，Variables 是每个任务都不一样的，在 post_graphql_blocking 的时候其实隐含了类型信息。所以不可以抽象成一组高度类似的函数。
-    // TODO 下一步是实现循环请求，要考虑 github graphql 的请求上限，需要做一点计算。
-
+pub fn single_query(
+    repo_owner: &str,
+    repo_name: &str,
+    query_cursor: Option<String>,
+    client: &blocking::Client,
+) -> Result<get_repository_discussions::ResponseData> {
     let variables = get_repository_discussions::Variables {
-        repo_owner: "mermaid-js".to_string(),
-        repo_name: "mermaid".to_string(),
-        // TODO 还不确定这个缺省该怎么处理
-        query_cursor: Some("Y3Vyc29yOnYyOpK5MjAyMy0wNi0wM1QwMjowOToyMSswODowMM4AUD8C".into()),
-        query_window: Some(3),
+        repo_owner: repo_owner.into(),
+        repo_name: repo_name.into(),
+        // 此处输入 None 可以获得第一页的内容，随后不断接收 cursor 来访问下一页。
+        query_cursor,
+        // 虽然 last 或者 first 只能填写 1-100，但是一次请求的 node 上限是 500,000。
+        // 所以设计上一次只请求一个请求 100 个其实有点小。
+        query_window: Some(100),
     };
 
-    // 关注以下几个字段就可以计算出剩余流量：
-    //
-    // x-ratelimit-limit	    The maximum number of points that you can use per hour
-    // x-ratelimit-remaining	The number of points remaining in the current rate limit window
-    // x-ratelimit-used	        The number of points you have used in the current rate limit window
-    // x-ratelimit-reset	    The time at which the current rate limit window resets, in UTC epoch seconds
-    // x-ratelimit-resource	    The rate limit resource that the request counted against. For GraphQL requests, this will always be graphql.
-    //
-    //  ref: https://docs.github.com/en/graphql/overview/rate-limits-and-node-limits-for-the-graphql-api
     let mut headers = header::HeaderMap::new();
 
     let response = graphql_client_ext::post_graphql_blocking::<GetRepositoryDiscussions, _>(
-        &client,
+        client,
         "https://api.github.com/graphql",
         variables,
         |h| {
@@ -108,8 +101,5 @@ pub fn operate_query(client: blocking::Client) -> Result<String> {
     log::info!("used: {used}");
     log::info!("reset: {reset}");
 
-    let response_data: get_repository_discussions::ResponseData =
-        response.data.expect("missing response data");
-
-    Ok(serde_json::to_string(&response_data)?)
+    response.data.context("missing response data")
 }
