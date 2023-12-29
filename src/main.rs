@@ -4,6 +4,7 @@ mod log;
 mod query;
 mod util;
 
+use ::log::info;
 use anyhow::{Context, Ok, Result};
 use reqwest::{blocking, header};
 use std::fs::File;
@@ -47,9 +48,30 @@ fn main() -> Result<()> {
         // 采集任务主体：遍历仓库列表，采集每个仓库的讨论区。
         .try_for_each(|(repo_owner, repo_name)| {
             log::info!("crawling {}/{}", repo_owner, repo_name);
-            crawling(&repo_owner, &repo_name, &client, TaskType::PRCommits)?;
-            crawling(&repo_owner, &repo_name, &client, TaskType::Discussions)?;
-            crawling(&repo_owner, &repo_name, &client, TaskType::ClosedIssues)?;
+            // 遍历三种类型的任务
+
+            for task_type in [
+                TaskType::Discussions,
+                TaskType::PRCommits,
+                TaskType::ClosedIssues,
+            ] {
+                //  检查对应的文件是否存在
+                let (last_step, last_cursor) = read_state(&repo_owner, &repo_name, task_type)
+                    .unwrap_or(/* 不管如何报错都当空的 */ (None, None));
+                info!(
+                    "读取到状态 last_step: {:?}, last_cursor: {:?}",
+                    last_step, last_cursor
+                );
+
+                crawling(
+                    &repo_owner,
+                    &repo_name,
+                    &client,
+                    task_type,
+                    last_step,
+                    last_cursor,
+                )?;
+            }
             Ok(())
         })?;
 
@@ -58,15 +80,63 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+fn read_state(
+    repo_owner: &str,
+    repo_name: &str,
+    task_type: TaskType,
+) -> Result<(Option<i32>, Option<String>)> {
+    // TODO 虽然这样的设计也算是可以解决问题，但为了更长远的考虑，最好每个仓库建
+    // 立一个 metadata 专门保留所有的状态数据
+
+    use std::path::Path;
+
+    let task_path = Path::new("output")
+        .join(format!("{}_{}", repo_owner, repo_name))
+        .join(task_type.to_string());
+
+    //  这里直接用 last 检查最后一个文件，原因是编号体系保证顺序最后一个是最新的。
+    //  从文件名中提取出 step & cursor
+    let last = std::fs::read_dir(task_path)
+        .context("文件夹不存在")?
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .filter(|p| p.is_file() && p.extension().is_some_and(|e| e == "json"))
+        .last()
+        .context("未能找到已有历史")?;
+
+    let (last_step, last_cursor) = last
+        .file_name()
+        .and_then(|name| name.to_str())
+        .and_then(|name| name.strip_suffix(".json"))
+        .map(|name| name.split('_'))
+        .and_then(|mut splits| {
+            let this_step = splits.next();
+            let this_cursor = splits.next();
+            if let (Some(this_step), Some(this_cursor)) = (this_step, this_cursor) {
+                let step = this_step.parse::<i32>().ok();
+                return step.zip(Some(this_cursor.to_string()));
+            }
+            None
+        })
+        .context("最后一个文件解析失败（原因可能复杂）")?;
+
+    Ok((Some(last_step), Some(last_cursor)))
+}
+
 fn crawling(
     repo_owner: &str,
     repo_name: &str,
     client: &blocking::Client,
     task_type: TaskType,
+    last_step: Option<i32>,
+    last_cursor: Option<String>,
 ) -> Result<()> {
-    let mut cursor: Option<String> = None;
+    let mut cursor: Option<String> = last_cursor;
 
-    for i in 0..5000 {
+    // 上一次爬虫最后一个请求要重新求，因为新的数据会增长到后面，每一批 100 个节点不一定都在
+    let begining_step = last_step.unwrap_or(0);
+
+    for i in begining_step..5000 {
         // 静态分发调用函数。
         let query::QueryResult {
             is_empty_page,
@@ -123,6 +193,29 @@ fn crawling(
         // 如果有下一页，就继续。
         cursor = query_cursor;
     }
+
+    Ok(())
+}
+
+#[test]
+fn test_read_dir() -> Result<()> {
+    use std::fs;
+    use std::path::Path;
+
+    let task_path = Path::new("output")
+        .join(format!("{}_{}", "AleoHQ", "leo"))
+        .join(TaskType::ClosedIssues.to_string());
+
+    // 也就是说 fs read_dir 有能力拿到文件列表最后一个文件。
+    // 但是前提条件是文件按照字典序排列吧。
+    // TODO 目前文件命名上，每个文件的数字保留位数只有 3，一旦文件数量超过四位数就会有问题。
+    // 目前最大的规模来自 nixos，1456 份让他也采集不完。
+    dbg!(fs::read_dir(task_path)?.last());
+
+    //  检查对应的文件是否存在
+    let (last_step, _) = read_state("AleoHQ", "leo", TaskType::ClosedIssues)?;
+
+    assert!(last_step.is_some());
 
     Ok(())
 }
