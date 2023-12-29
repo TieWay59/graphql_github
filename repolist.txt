@@ -1,5 +1,6 @@
-AleoHQ/leo
-NixOS/nixpkgs
+# AleoHQ/leo
+# 没采集完：
+# NixOS/nixpkgs 
 woowacourse-precourse/java-lotto-6
 woowacourse-precourse/java-racingcar-6
 llvm/llvm-project

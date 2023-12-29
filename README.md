@@ -6,20 +6,22 @@
 
   schemas 可以直接下载：[Public schema - GitHub Docs](https://docs.github.com/en/graphql/overview/public-schema)
 
-## 版本说明
+## 版本代办
 
-- 0.0.1
+- v0.0.1
 
-  - [x] 搭建基本的三类任务查询。
-    - [x] discussions
-    - [x] pr
-    - [x] issues
-  - [x] 查询结果先按照 json 文件的形式，以仓库为文件夹存储。（咱不考虑数据库）
+  - 搭建基本的三类任务查询。
+    - discussions
+    - pr
+    - issues
+  - 查询结果先按照 json 文件的形式，以仓库为文件夹存储。（咱不考虑数据库）
     - 命名格式参考： `<owner>/<repo>/discussions/[page_number].json`
 
-- 0.0.2
+- v0.0.2
 
-  - [ ] 寻找合适的数据库列表进行采集。
+  - 增加请求失败重试的机制，并且加强了对请求失败的判断
+  - 修复因为 reset 时间戳认知错误导致的意外
+  - 寻找合适的数据库列表进行采集。
 
     - [Open Leaderboard (x-lab.info)](https://open-leaderboard.x-lab.info/)
     - 可以从网络后台找到榜单的数据来源：`curl https://xlab-open-source.oss-cn-beijing.aliyuncs.com/open_leaderboard/activity/repo/global/202311.json -o 202311.json`
@@ -44,4 +46,7 @@
 
       <!-- TODO 这一块也可以用 rust 自动化 -->
 
-  - [ ] 实现一个测试流程和模块。
+- v0.0.3
+
+  - [ ] 实现测试流程和模块。
+  - [ ] 转移日志到文件。
