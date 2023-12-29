@@ -51,16 +51,30 @@ pub fn dump_output(
 }
 
 /// 参考 https://docs.github.com/en/graphql/overview/rate-limits-and-node-limits-for-the-graphql-api
-#[derive(Debug, Default)]
+/// If you exceed your primary rate limit, the response status will still be 200, but you will receive
+/// an error message, and the value of the x-ratelimit-remaining header will be 0. You should not retry
+///  your request until after the time specified by the x-ratelimit-reset header.
+#[derive(Debug)]
 pub struct RateLimit {
-    pub limit: i32,
-    pub remaining: i32,
-    pub used: i32,
-    pub reset: i32,
+    pub limit: i64,
+    pub remaining: i64,
+    pub used: i64,
+    pub reset: i64,
+}
+
+impl Default for RateLimit {
+    fn default() -> Self {
+        Self {
+            limit: 5000,
+            remaining: 0,
+            used: 5000,
+            reset: chrono::Utc::now().timestamp() + 3600,
+        }
+    }
 }
 
 impl RateLimit {
-    fn new(limit: i32, remaining: i32, used: i32, reset: i32) -> Self {
+    fn new(limit: i64, remaining: i64, used: i64, reset: i64) -> Self {
         Self {
             limit,
             remaining,
@@ -74,7 +88,7 @@ impl TryFrom<&HeaderMap> for RateLimit {
     type Error = anyhow::Error;
 
     fn try_from(headers: &HeaderMap) -> anyhow::Result<Self> {
-        let extract = |hm: &HeaderMap, key: &str| -> Result<i32> {
+        let extract = |hm: &HeaderMap, key: &str| -> Result<i64> {
             hm.get(key)
                 .context(format!("headers {key} 不存在"))?
                 .to_str()?
@@ -83,10 +97,11 @@ impl TryFrom<&HeaderMap> for RateLimit {
         };
 
         Ok(Self::new(
-            extract(headers, "x-ratelimit-limit")?,
-            extract(headers, "x-ratelimit-remaining")?,
-            extract(headers, "x-ratelimit-used")?,
-            extract(headers, "x-ratelimit-reset")?,
+            extract(headers, "x-ratelimit-limit").unwrap_or(5000),
+            // 理论上 remaining 不应该会没有。
+            extract(headers, "x-ratelimit-remaining").unwrap_or(0),
+            extract(headers, "x-ratelimit-used").unwrap_or(5000),
+            extract(headers, "x-ratelimit-reset").unwrap_or(chrono::Utc::now().timestamp() + 3600),
         ))
     }
 }
@@ -99,19 +114,17 @@ pub fn check_limit_and_block(
         reset,
     }: RateLimit,
 ) {
+    // 限制说明：
+    //  No more than 60 seconds of this CPU time may be for the GraphQL API.
+    //      You can roughly estimate the CPU time by measuring the total response time for your API requests.
     log::info!("limit: ({used}/{limit}) remaining: {remaining} reset: {reset}");
 
     if remaining < 5 {
         log::warn!("remaining < 5, 开始休眠 {remaining}s");
         thread::sleep(Duration::from_secs(remaining as u64));
     } else {
-        // github 限制 gql 查询次数 5000/h
-        // 算一下 5000 / 60 / 60 = 1.38/s
-        // 1 / 1.38 = 0.72s 可以发一个请求。
-        // 考虑上中间的延迟，基本上会不太可能超过限制。
-        // 结论就是这样平均到 700 的随机还是太快了，还是很容易被限制
-        // 现在我随机范围设置到 700-900。
-        let sleep_millis = rand::thread_rng().gen_range(700..=900);
+        // 不用说了，github 建议每次请求都间隔 1 秒。
+        let sleep_millis = rand::thread_rng().gen_range(1000..=1200);
         log::info!("开始休眠随机间隔 {sleep_millis}ms");
         thread::sleep(Duration::from_millis(sleep_millis));
     }

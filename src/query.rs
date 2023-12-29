@@ -5,6 +5,7 @@ use reqwest::blocking;
 use crate::graphql_client_ext;
 
 use crate::util;
+use crate::util::RateLimit;
 
 pub enum QueryResponseData {
     Discussions(get_answered_discussions::ResponseData),
@@ -61,7 +62,7 @@ pub fn single_discussion_query(
         "https://api.github.com/graphql",
         variables,
         |h| {
-            rate_limit = h.try_into()?;
+            rate_limit = h.try_into().unwrap_or_default();
             Ok(())
         },
     )
