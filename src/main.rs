@@ -11,6 +11,12 @@ use std::fs::File;
 use std::io::{self, BufRead};
 use util::TaskType;
 
+// 每个仓库每个类型的数据采集步数的上限
+const STEP_THRESHHOLD: i32 = 3;
+
+// 重试间隔时间，单位秒
+const BASE_RETRY_SECS: u64 = 60;
+
 fn main() -> Result<()> {
     log::set_logger(&log::MY_LOGGER).expect("logger init failed");
     log::set_max_level(log::LevelFilter::Info);
@@ -136,7 +142,7 @@ fn crawling(
     // 上一次爬虫最后一个请求要重新求，因为新的数据会增长到后面，每一批 100 个节点不一定都在
     let begining_step = last_step.unwrap_or(0);
 
-    for i in begining_step..5000 {
+    for i in begining_step..=STEP_THRESHHOLD {
         // 静态分发调用函数。
         let query::QueryResult {
             is_empty_page,

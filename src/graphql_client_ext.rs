@@ -39,6 +39,7 @@ pub fn post_graphql_blocking<Q: GraphQLQuery, U: reqwest::IntoUrl + Clone>(
         // exponentially increasing amount of time between retries, and throw an
         // error after a specific number of retries.
         if let Ok(r) = &reqwest_response {
+            // 根据实际情况，大部分时候都是 status: 504 在拒绝。
             if r.status().is_success() {
                 let headers = r.headers();
                 if headers
@@ -55,7 +56,9 @@ pub fn post_graphql_blocking<Q: GraphQLQuery, U: reqwest::IntoUrl + Clone>(
             }
         }
 
-        // 第一重限制可能提供的时间
+        // 第一重限制可能提供的时间根据实际情况，第一层的 5000 次限制每个小时都
+        // 是跑不满的，因为每个请求拉满 100 的 nodes 实际给 github 的计算时间还
+        // 是偏多了一点。所以门槛都在计算复杂度上。
         let x_ratelimit_reset: u64 = reqwest_response
             .as_ref()
             .ok()
@@ -75,10 +78,11 @@ pub fn post_graphql_blocking<Q: GraphQLQuery, U: reqwest::IntoUrl + Clone>(
 
         let retry_secs = retry_after
             .max(x_ratelimit_reset - chrono::Utc::now().timestamp() as u64)
+            // 假设基础的重试时间是 30 秒
             // 累计前面的 30 + 60 + 120 + 240 + 480 + 960 + 1920 = 3810 秒约等于等待一小时。
             // 简单算就是 3840（30 << 7）秒 - 30 秒
             // take max time on retry.
-            .max(30 << retry_step);
+            .max(crate::BASE_RETRY_SECS << retry_step);
 
         log::info!("服务器请求被阻止，尝试 {retry_secs}s 后重试任务。");
 

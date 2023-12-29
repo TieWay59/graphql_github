@@ -120,11 +120,17 @@ pub fn check_limit_and_block(
     log::info!("limit: ({used}/{limit}) remaining: {remaining} reset: {reset}");
 
     if remaining < 5 {
+        // 实际上这种情况非常难触及到，因为每次请求的查询量很大，门槛不在 5000 次的限制。
         log::warn!("remaining < 5, 开始休眠 {remaining}s");
         thread::sleep(Duration::from_secs(remaining as u64));
     } else {
-        // 不用说了，github 建议每次请求都间隔 1 秒。
-        let sleep_millis = rand::thread_rng().gen_range(1000..=1200);
+        let sleep_millis = if used % 3 == 0 {
+            // 每法 5 次，就设置一个稍微长的休眠。
+            rand::thread_rng().gen_range(10_000..=24_000)
+        } else {
+            // 经过观察，现在的规模一分钟 5 次都有点难。
+            rand::thread_rng().gen_range(5_000..=12_000)
+        };
         log::info!("开始休眠随机间隔 {sleep_millis}ms");
         thread::sleep(Duration::from_millis(sleep_millis));
     }
