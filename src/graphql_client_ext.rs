@@ -78,7 +78,7 @@ pub fn post_graphql_blocking<Q: GraphQLQuery, U: reqwest::IntoUrl + Clone>(
             // 累计前面的 30 + 60 + 120 + 240 + 480 + 960 + 1920 = 3810 秒约等于等待一小时。
             // 简单算就是 3840（30 << 7）秒 - 30 秒
             // take max time on retry.
-            .max(1 << retry_step);
+            .max(30 << retry_step);
 
         log::info!("服务器请求被阻止，尝试 {retry_secs}s 后重试任务。");
 
