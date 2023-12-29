@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use rand::Rng;
 use reqwest::header::HeaderMap;
 use std::time::Duration;
 use std::{fs, thread};
@@ -74,7 +75,8 @@ impl TryFrom<&HeaderMap> for RateLimit {
 
     fn try_from(headers: &HeaderMap) -> anyhow::Result<Self> {
         let extract = |hm: &HeaderMap, key: &str| -> Result<i32> {
-            hm[key]
+            hm.get(key)
+                .context(format!("headers {key} 不存在"))?
                 .to_str()?
                 .parse()
                 .context(format!("headers {key} 数值解析失败"))
@@ -99,14 +101,18 @@ pub fn check_limit_and_block(
 ) {
     log::info!("limit: ({used}/{limit}) remaining: {remaining} reset: {reset}");
 
-    if remaining < 2 {
-        log::warn!("remaining < 2, 开始休眠 {remaining}s");
+    if remaining < 5 {
+        log::warn!("remaining < 5, 开始休眠 {remaining}s");
         thread::sleep(Duration::from_secs(remaining as u64));
     } else {
         // github 限制 gql 查询次数 5000/h
         // 算一下 5000 / 60 / 60 = 1.38/s
-        // 1 / 1.38 = 0.72s 可以发一个请求，我感觉可以设置 sleep 650-750 ms。
+        // 1 / 1.38 = 0.72s 可以发一个请求。
         // 考虑上中间的延迟，基本上会不太可能超过限制。
-        thread::sleep(Duration::from_millis(rand::random::<u64>() % 100 + 650));
+        // 结论就是这样平均到 700 的随机还是太快了，还是很容易被限制
+        // 现在我随机范围设置到 700-900。
+        let sleep_millis = rand::thread_rng().gen_range(700..=900);
+        log::info!("开始休眠随机间隔 {sleep_millis}ms");
+        thread::sleep(Duration::from_millis(sleep_millis));
     }
 }
