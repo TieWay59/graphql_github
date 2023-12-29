@@ -5,7 +5,6 @@ use reqwest::blocking;
 use crate::graphql_client_ext;
 
 use crate::util;
-use crate::util::RateLimit;
 
 pub enum QueryResponseData {
     Discussions(get_answered_discussions::ResponseData),

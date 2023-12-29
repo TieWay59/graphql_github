@@ -1,6 +1,4 @@
-use chrono::{DateTime, TimeZone, Utc};
 use graphql_client::GraphQLQuery;
-use reqwest::header::{self, HeaderValue};
 use std::{thread, time::Duration};
 
 /// 重新定义 graphql_client::reqwest::post_graphql_blocking
@@ -109,6 +107,8 @@ pub fn post_graphql_blocking<Q: GraphQLQuery, U: reqwest::IntoUrl + Clone>(
 
 #[test]
 fn test_time_stamp() {
+    use chrono::{DateTime, TimeZone, Utc};
+
     // 注意系统给的 reset 是一个 time stamp
     let epoch_seconds = 1703858652;
 
