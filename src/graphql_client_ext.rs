@@ -1,4 +1,5 @@
 use graphql_client::GraphQLQuery;
+use std::io::Write;
 use std::{thread, time::Duration};
 
 /// 重新定义 graphql_client::reqwest::post_graphql_blocking
@@ -82,14 +83,7 @@ pub fn post_graphql_blocking<Q: GraphQLQuery, U: reqwest::IntoUrl + Clone>(
         log::info!("服务器请求被阻止，尝试 {retry_secs}s 后重试任务。");
 
         // dump the response body before retries to  logs/<datetime>_fail.json
-        // TODO not tested need be careful.
-        {
-            let now = chrono::Local::now();
-            let file_name = format!("logs/{}_fail.json", now.format("%Y-%m-%d_%H-%M-%S"));
-            let mut file = std::fs::File::create(&file_name).unwrap();
-            let _ = std::io::copy(&mut reqwest_response.as_mut().unwrap(), &mut file);
-            log::info!("response body dumped to {}", file_name);
-        }
+        dump_fail_request(format!("{reqwest_response:?}").as_bytes());
 
         thread::sleep(Duration::from_secs(retry_secs));
 
@@ -103,6 +97,33 @@ pub fn post_graphql_blocking<Q: GraphQLQuery, U: reqwest::IntoUrl + Clone>(
     let _ = f(response.headers());
 
     response.json()
+}
+
+fn dump_fail_request(body: &[u8]) {
+    let now = chrono::Local::now();
+
+    let full_path = std::path::Path::new("output").join(format!(
+        "logs/{}_fail.json",
+        now.format("%Y-%m-%d_%H-%M-%S")
+    ));
+
+    if !full_path.exists() {
+        std::fs::create_dir_all(full_path.parent().unwrap())
+            .unwrap_or_else(|_| panic!("{full_path:?} 路径创建出现问题"));
+    }
+
+    std::fs::File::create(&full_path)
+        .ok()
+        .unwrap()
+        .write_all(body)
+        .unwrap();
+
+    log::info!("response body dumped to {full_path:?}");
+}
+
+#[test]
+fn test_dump_fail_request() {
+    dump_fail_request("hello".as_bytes());
 }
 
 #[test]
