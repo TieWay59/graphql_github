@@ -1,12 +1,12 @@
+# woowacourse-precourse/java-lotto-6
+# woowacourse-precourse/java-racingcar-6
 # AleoHQ/leo
 # 没采集完：
 # NixOS/nixpkgs 
-woowacourse-precourse/java-lotto-6
-woowacourse-precourse/java-racingcar-6
-llvm/llvm-project
-home-assistant/core
-digitalinnovationone/dio-lab-open-source
-microsoft/vscode
+# llvm/llvm-project
+# home-assistant/core
+# digitalinnovationone/dio-lab-open-source
+# microsoft/vscode
 firstcontributions/first-contributions
 pytorch/pytorch
 flutter/flutter
