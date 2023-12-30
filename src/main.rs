@@ -8,7 +8,7 @@ use ::log::info;
 use anyhow::{Context, Ok, Result};
 use reqwest::{blocking, header};
 use std::fs::File;
-use std::io::{self, BufRead};
+use std::io::{self, BufRead, Cursor};
 use util::TaskType;
 
 // 每个仓库每个类型的数据采集步数的上限
@@ -120,6 +120,10 @@ fn read_state(
             let this_cursor = splits.next();
             if let (Some(this_step), Some(this_cursor)) = (this_step, this_cursor) {
                 let step = this_step.parse::<i32>().ok();
+                if step == Some(0) {
+                    // 首个 step 的 cursor 是 first_cursor
+                    return None;
+                }
                 return step.zip(Some(this_cursor.to_string()));
             }
             None
