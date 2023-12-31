@@ -18,8 +18,10 @@ const STEP_THRESHHOLD: i32 = 3;
 const BASE_RETRY_SECS: u64 = 60;
 
 fn main() -> Result<()> {
-    log::set_logger(&log::MY_LOGGER).expect("logger init failed");
-    log::set_max_level(log::LevelFilter::Info);
+    // log::set_logger(&log::MY_LOGGER).expect("logger init failed");
+    // log::set_max_level(log::LevelFilter::Info);
+
+    log4rs::init_file("config/log4rs.yaml", Default::default())?;
 
     log::info!("begin");
 
