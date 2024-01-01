@@ -8,14 +8,14 @@ use ::log::info;
 use anyhow::{Context, Ok, Result};
 use reqwest::{blocking, header};
 use std::fs::File;
-use std::io::{self, BufRead, Cursor};
+use std::io::{self, BufRead};
 use util::TaskType;
 
 // 每个仓库每个类型的数据采集步数的上限
 const STEP_THRESHHOLD: i32 = 3;
 
 // 重试间隔时间，单位秒
-const BASE_RETRY_SECS: u64 = 60;
+const BASE_RETRY_SECS: u64 = 5;
 
 fn main() -> Result<()> {
     // log::set_logger(&log::MY_LOGGER).expect("logger init failed");
@@ -63,13 +63,26 @@ fn main() -> Result<()> {
                 TaskType::PRCommits,
                 TaskType::ClosedIssues,
             ] {
+                log::info!("正在采集的目标为 {repo_owner}/{repo_name} 的 {task_type}");
+
                 //  检查对应的文件是否存在
                 let (last_step, last_cursor) = read_state(&repo_owner, &repo_name, task_type)
                     .unwrap_or(/* 不管如何报错都当空的 */ (None, None));
-                info!(
-                    "读取到状态 last_step: {:?}, last_cursor: {:?}",
-                    last_step, last_cursor
-                );
+
+                if last_step >= Some(STEP_THRESHHOLD) {
+                    log::info!(
+                        "已经采集到最大步数 `STEP_THRESHHOLD: {STEP_THRESHHOLD}`，跳过 {repo_owner}/{repo_name} 的 {task_type}",
+                        repo_owner = repo_owner,
+                        repo_name = repo_name,
+                        task_type = task_type
+                    );
+                    continue;
+                } else {
+                    info!(
+                        "读取到状态 last_step: {:?}, last_cursor: {:?}",
+                        last_step, last_cursor
+                    );
+                }
 
                 crawling(
                     &repo_owner,
@@ -148,7 +161,7 @@ fn crawling(
     // 上一次爬虫最后一个请求要重新求，因为新的数据会增长到后面，每一批 100 个节点不一定都在
     let begining_step = last_step.unwrap_or(0);
 
-    for i in begining_step..=STEP_THRESHHOLD {
+    for i in begining_step..STEP_THRESHHOLD {
         // 静态分发调用函数。
         let query::QueryResult {
             is_empty_page,
