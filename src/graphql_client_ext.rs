@@ -18,27 +18,24 @@ pub fn post_graphql_blocking<Q: GraphQLQuery, U: reqwest::IntoUrl + Clone>(
 
     for retry_step in 0..=6 {
         // https://docs.github.com/en/graphql/overview/rate-limits-and-node-limits-for-the-graphql-api#exceeding-the-rate-limit
+        // 主要速率限制（Primary Rate Limit）：
         //
-        // If you exceed your primary rate limit, the response status will still
-        // be 200, but you will receive an error message, and the value of the
-        // x-ratelimit-remaining header will be 0. You should not retry your
-        // request until after the time specified by the x-ratelimit-reset
-        // header.（因为每秒间隔 1 次，基本上不太可能用完 5000 每小时的额度）
+        // 如果你超过了主要速率限制，响应状态仍然为 200，但会收到一个错误消息，
+        // 并且 x-ratelimit-remaining 标头的值将为 0。在 x-ratelimit-reset 标头
+        // 指定的时间之前，不应重试请求。
         //
-        // If you exceed a secondary rate limit, the response status will be 200
-        // or 403, and you will receive an error message that indicates that you
-        // hit a secondary rate limit.
+        // 次要速率限制（Secondary Rate Limit）：
         //
-        // If the *retry-after* response header is present, you should not retry
-        // your request until after that many seconds has elapsed. If the
-        // x-ratelimit-remaining header is 0, you should not retry your request
-        // until after the time, in UTC epoch seconds, specified by the
-        // x-ratelimit-reset header.
+        // 如果你超过了次要速率限制，响应状态将为 200 或 403，同时会收到一个指示
+        // 你触发了次要速率限制的错误消息。如果响应头中包含了 retry-after，则应
+        // 该在指定的秒数之后重试请求。
         //
-        // Otherwise, wait for at least one minute before retrying. If your
-        // request continues to fail due to a secondary rate limit, wait for an
-        // exponentially increasing amount of time between retries, and throw an
-        // error after a specific number of retries.
+        // 如果 x-ratelimit-remaining 标头的值为 0，则应在 x-ratelimit-reset 标
+        // 头指定的 UTC epoch 秒数之后重试请求。否则，如果没有明确的重试时间，等
+        // 待至少一分钟再进行重试。如果由于次要速率限制导致请求继续失败，等待重
+        // 试的时间应按指数增加，最终在一定数量的重试后抛出错误。
+        //
+        // 但在实际情况中，502 的情况最多。
         if let Ok(r) = &reqwest_response {
             info!(
                 "响应状态码：`{code:?}`，响应头：{head:#?}",
@@ -46,19 +43,17 @@ pub fn post_graphql_blocking<Q: GraphQLQuery, U: reqwest::IntoUrl + Clone>(
                 head = r.headers()
             );
             // 根据实际情况，大部分时候都是 status: 504 在拒绝。
-            if r.status().is_success() {
-                let headers = r.headers();
-                if headers
+            if r.status().is_success()
+                && r.headers()
                     .get("x-ratelimit-remaining")
                     .and_then(|v| v.to_str().ok())
                     .and_then(|v| v.parse::<i32>().ok())
                     .unwrap_or(0)
                     > 0
-                {
-                    // 存在 x-ratelimit-remaining 说明至少还是第二层限制没有超
-                    // 但是如果是 0，那么就需要等待 x-ratelimit-reset 了。
-                    break;
-                }
+            {
+                // 存在 x-ratelimit-remaining 说明至少还是第二层限制没有超
+                // 但是如果是 0，那么就需要等待 x-ratelimit-reset 了。
+                break;
             }
         }
 
