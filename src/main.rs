@@ -12,7 +12,7 @@ use std::io::{self, BufRead};
 use util::TaskType;
 
 // 每个仓库每个类型的数据采集步数的上限
-const STEP_THRESHHOLD: i32 = 3;
+const STEP_THRESHHOLD: i32 = 5;
 
 // 重试间隔时间，单位秒
 const BASE_RETRY_SECS: u64 = 5;
@@ -53,10 +53,10 @@ fn main() -> Result<()> {
             let repo_name = it.next()?.to_string();
             Some((repo_owner, repo_name))
         })
+        .enumerate()
         // 采集任务主体：遍历仓库列表，采集每个仓库的讨论区。
-        .try_for_each(|(repo_owner, repo_name)| {
-            log::info!("crawling {}/{}", repo_owner, repo_name);
-            // 遍历三种类型的任务
+        .try_for_each(|(i, (repo_owner, repo_name))| {
+            log::info!("[line: {i}] crawling {repo_owner}/{repo_name}");
 
             for task_type in [
                 TaskType::Discussions,
