@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use chrono::TimeZone;
 use rand::Rng;
 use reqwest::header::HeaderMap;
 use std::time::Duration;
@@ -114,10 +115,18 @@ pub fn check_limit_and_block(
         reset,
     }: RateLimit,
 ) {
+    // github 给的时间戳是加州西 7 区的时间，所以需要转换一下。
+    let time_zone = chrono::FixedOffset::west_opt(7 * 3600).unwrap();
+
     // 限制说明：
     //  No more than 60 seconds of this CPU time may be for the GraphQL API.
     //      You can roughly estimate the CPU time by measuring the total response time for your API requests.
-    log::info!("limit: ({used}/{limit}) remaining: {remaining} reset: {reset}");
+    log::info!(
+        "limit: ({used}/{limit}) remaining: {remaining} reset(github 本部时间):  {reset_time}",
+        reset_time = time_zone
+            .from_utc_datetime(&chrono::NaiveDateTime::from_timestamp_opt(reset, 0).unwrap())
+            .to_rfc3339(),
+    );
 
     if remaining < 5 {
         // 实际上这种情况非常难触及到，因为每次请求的查询量很大，门槛不在 5000 次的限制。

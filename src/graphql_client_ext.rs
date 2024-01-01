@@ -75,6 +75,9 @@ where
             }
         }
 
+        // github 给的时间戳是加州西 7 区的时间，所以需要转换一下。
+        let time_zone = chrono::FixedOffset::west_opt(7 * 3600).unwrap();
+
         // 第一重限制可能提供的时间根据实际情况，第一层的 5000 次限制每个小时都
         // 是跑不满的，因为每个请求拉满 100 的 nodes 实际给 github 的计算时间还
         // 是偏多了一点。所以门槛都在计算复杂度上。
@@ -84,7 +87,7 @@ where
             .and_then(|r| r.headers().get("x-ratelimit-reset"))
             .and_then(|v| v.to_str().ok())
             .and_then(|v| v.parse().ok())
-            .unwrap_or(chrono::Utc::now().timestamp() as u64);
+            .unwrap_or(chrono::Utc::now().with_timezone(&time_zone).timestamp() as u64);
 
         // 第二重限制可能提供的时间
         let retry_after: u64 = reqwest_response
@@ -200,4 +203,10 @@ fn test_time_stamp() {
         .expect("Invalid timestamp");
 
     println!("UTC: {}", nowtime.to_rfc3339());
+}
+
+#[test]
+fn text_time_zone() {
+    let fo = chrono::FixedOffset::west_opt(7 * 3600).unwrap();
+    dbg!(chrono::Utc::now().with_timezone(&fo).to_rfc3339());
 }
