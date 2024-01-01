@@ -36,6 +36,16 @@ type URI = String;
 // 一个 get_repository_discussions 命名的模块会包含进来。
 pub struct GetAnsweredDiscussions;
 
+impl graphql_client_ext::Window for get_answered_discussions::Variables {
+    fn get_window(&self) -> i64 {
+        self.query_window.unwrap_or(100)
+    }
+
+    fn set_window(&mut self, window: i64) {
+        self.query_window = Some(window);
+    }
+}
+
 pub fn single_discussion_query(
     repo_owner: &str,
     repo_name: &str,
@@ -101,6 +111,16 @@ pub fn single_discussion_query(
 )]
 pub struct GetPRCommits;
 
+impl graphql_client_ext::Window for get_pr_commits::Variables {
+    fn get_window(&self) -> i64 {
+        self.query_window.unwrap_or(100)
+    }
+
+    fn set_window(&mut self, window: i64) {
+        self.query_window = Some(window);
+    }
+}
+
 pub fn single_pr_commits_query(
     repo_owner: &str,
     repo_name: &str,
@@ -160,6 +180,16 @@ pub fn single_pr_commits_query(
     response_derives = "Debug, Serialize, Deserialize, Clone"
 )]
 pub struct GetClosedIssues;
+
+impl graphql_client_ext::Window for get_closed_issues::Variables {
+    fn get_window(&self) -> i64 {
+        self.query_window.unwrap_or(100)
+    }
+
+    fn set_window(&mut self, window: i64) {
+        self.query_window = Some(window);
+    }
+}
 
 pub fn single_issues_query(
     repo_owner: &str,

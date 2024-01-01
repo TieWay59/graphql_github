@@ -1,6 +1,12 @@
 use graphql_client::GraphQLQuery;
+use log::warn;
 use std::io::Write;
 use std::{thread, time::Duration};
+
+pub trait Window {
+    fn get_window(&self) -> i64;
+    fn set_window(&mut self, window: i64);
+}
 
 /// 重新定义 graphql_client::reqwest::post_graphql_blocking
 /// 主要增加了一个观察者闭包函数，观察内部的 header。
@@ -10,8 +16,11 @@ pub fn post_graphql_blocking<Q: GraphQLQuery, U: reqwest::IntoUrl + Clone>(
     variables: Q::Variables,
     // 目前只是一个粗略的实现，由于源库年久失修，这个
     mut f: impl FnMut(&reqwest::header::HeaderMap) -> anyhow::Result<()>,
-) -> Result<graphql_client::Response<Q::ResponseData>, reqwest::Error> {
-    let body = Q::build_query(variables);
+) -> Result<graphql_client::Response<Q::ResponseData>, reqwest::Error>
+where
+    Q::Variables: Window,
+{
+    let mut body = Q::build_query(variables);
 
     let mut reqwest_response = client.post(url.clone()).json(&body).send();
 
@@ -34,21 +43,35 @@ pub fn post_graphql_blocking<Q: GraphQLQuery, U: reqwest::IntoUrl + Clone>(
         // 待至少一分钟再进行重试。如果由于次要速率限制导致请求继续失败，等待重
         // 试的时间应按指数增加，最终在一定数量的重试后抛出错误。
         //
-        // 但在实际情况中，502 504 的情况一般是数据规模太大导致。
-        // https://github.com/orgs/community/discussions/24631#discussioncomment-3244785
         if let Ok(r) = &reqwest_response {
-            // 根据实际情况，大部分时候都是 status: 504 在拒绝。
-            if r.status().is_success()
-                && r.headers()
-                    .get("x-ratelimit-remaining")
-                    .and_then(|v| v.to_str().ok())
-                    .and_then(|v| v.parse::<i32>().ok())
-                    .unwrap_or(0)
-                    > 0
-            {
-                // 存在 x-ratelimit-remaining 说明至少还是第二层限制没有超
-                // 但是如果是 0，那么就需要等待 x-ratelimit-reset 了。
-                break;
+            use reqwest::StatusCode as Code;
+            match r.status() {
+                Code::OK => {
+                    // 如果是 200，但是 x-ratelimit-remaining 为 0，那么就需要等待 x-ratelimit-reset 了。
+                    if r.headers()
+                        .get("x-ratelimit-remaining")
+                        .and_then(|v| v.to_str().ok())
+                        .and_then(|v| v.parse::<i32>().ok())
+                        .unwrap_or(0)
+                        > 0
+                    {
+                        break;
+                    }
+                }
+                Code::BAD_GATEWAY | Code::GATEWAY_TIMEOUT => {
+                    // https://github.com/orgs/community/discussions/24631#discussioncomment-3244785
+                    // 但在实际情况中，502 504 的情况一般是数据规模太大导致。
+                    // 如果是 502 504，那么就需要把会窗口大小改小。
+                    //  TODO 这里也意味着每一页的大小是不固定的。
+                    let size = body.variables.get_window();
+                    let new_size = (size * 2 / 3).max(1);
+                    // 此处每次缩小到原来的 2/3
+                    log::info!("收到 502 or 504 响应码，尝试缩小本次窗口大小到 {new_size}。");
+                    body.variables.set_window(new_size);
+                }
+                code => {
+                    warn!("收到未处理过的意外响应码：{code}");
+                }
             }
         }
 
@@ -83,6 +106,7 @@ pub fn post_graphql_blocking<Q: GraphQLQuery, U: reqwest::IntoUrl + Clone>(
         log::info!("服务器请求被阻止，尝试 {retry_secs}s 后重试任务。");
 
         // dump the response body before retries to  logs/<datetime>_fail.json
+        // 此处会移动消耗掉 reqwest_response
         dump_fail_request(reqwest_response);
 
         thread::sleep(Duration::from_secs(retry_secs));
