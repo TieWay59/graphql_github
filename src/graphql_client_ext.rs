@@ -1,4 +1,5 @@
 use graphql_client::GraphQLQuery;
+use log::info;
 use std::io::Write;
 use std::{thread, time::Duration};
 
@@ -39,6 +40,11 @@ pub fn post_graphql_blocking<Q: GraphQLQuery, U: reqwest::IntoUrl + Clone>(
         // exponentially increasing amount of time between retries, and throw an
         // error after a specific number of retries.
         if let Ok(r) = &reqwest_response {
+            info!(
+                "响应状态码：`{code:?}`，响应头：{head:#?}",
+                code = r.status(),
+                head = r.headers()
+            );
             // 根据实际情况，大部分时候都是 status: 504 在拒绝。
             if r.status().is_success() {
                 let headers = r.headers();
