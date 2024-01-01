@@ -45,7 +45,7 @@ pub fn dump_output(
 
     fs::File::create(&full_path)?.write_all(parsed_json.as_bytes())?;
 
-    log::info!("成功导出文件 {full_path:?}");
+    log::info!("成功导出文件： {fp}", fp = full_path.to_string_lossy());
 
     Ok(())
 }
