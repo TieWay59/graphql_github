@@ -1,5 +1,4 @@
 use graphql_client::GraphQLQuery;
-use log::info;
 use std::io::Write;
 use std::{thread, time::Duration};
 
@@ -35,13 +34,9 @@ pub fn post_graphql_blocking<Q: GraphQLQuery, U: reqwest::IntoUrl + Clone>(
         // 待至少一分钟再进行重试。如果由于次要速率限制导致请求继续失败，等待重
         // 试的时间应按指数增加，最终在一定数量的重试后抛出错误。
         //
-        // 但在实际情况中，502 的情况最多。
+        // 但在实际情况中，502 504 的情况一般是数据规模太大导致。
+        // https://github.com/orgs/community/discussions/24631#discussioncomment-3244785
         if let Ok(r) = &reqwest_response {
-            info!(
-                "响应状态码：`{code:?}`，响应头：{head:#?}",
-                code = r.status(),
-                head = r.headers()
-            );
             // 根据实际情况，大部分时候都是 status: 504 在拒绝。
             if r.status().is_success()
                 && r.headers()
@@ -88,7 +83,7 @@ pub fn post_graphql_blocking<Q: GraphQLQuery, U: reqwest::IntoUrl + Clone>(
         log::info!("服务器请求被阻止，尝试 {retry_secs}s 后重试任务。");
 
         // dump the response body before retries to  logs/<datetime>_fail.json
-        dump_fail_request(format!("{reqwest_response:?}").as_bytes());
+        dump_fail_request(reqwest_response);
 
         thread::sleep(Duration::from_secs(retry_secs));
 
@@ -104,31 +99,59 @@ pub fn post_graphql_blocking<Q: GraphQLQuery, U: reqwest::IntoUrl + Clone>(
     response.json()
 }
 
-fn dump_fail_request(body: &[u8]) {
-    let now = chrono::Local::now();
+fn dump_fail_request(reqwest_response: Result<reqwest::blocking::Response, reqwest::Error>) {
+    match reqwest_response {
+        Ok(r) => {
+            log::error!(
+                "本次失败响应状态码：{code:?}，响应头：{head:#?}",
+                code = r.status(),
+                head = r.headers()
+            );
 
-    let full_path = std::path::Path::new("output").join(format!(
-        "logs/{}_fail.json",
-        now.format("%Y-%m-%d_%H-%M-%S")
-    ));
+            let body = r.text().unwrap_or("respnse.text() failed".to_owned());
 
-    if !full_path.exists() {
-        std::fs::create_dir_all(full_path.parent().unwrap())
-            .unwrap_or_else(|_| panic!("{full_path:?} 路径创建出现问题"));
-    }
+            if body.starts_with("<!DOCTYPE html>") {
+                let log_dir = std::path::Path::new("log");
+                if !log_dir.exists() {
+                    std::fs::create_dir(log_dir).unwrap();
+                }
 
-    std::fs::File::create(&full_path)
-        .ok()
-        .unwrap()
-        .write_all(body)
-        .unwrap();
+                let filename = log_dir.join(format!(
+                    "{}_fail.html",
+                    chrono::Utc::now().format("%Y-%m-%d_%H_%M_%S")
+                ));
 
-    log::info!("response body dumped to {full_path:?}");
+                let mut file = std::fs::File::create(&filename).unwrap();
+
+                file.write_all(body.as_bytes()).unwrap();
+
+                log::error!(
+                    "本次失败响应体的内容为： {p}",
+                    p = filename.as_path().to_string_lossy()
+                );
+            } else {
+                log::error!("本次失败响应体的内容为： {body}");
+            }
+        }
+        Err(e) => {
+            log::error!("reqwest_response is Err: {e:#?}");
+        }
+    };
 }
 
 #[test]
-fn test_dump_fail_request() {
-    dump_fail_request("hello".as_bytes());
+fn test_dump_file_create() {
+    let log_dir = std::path::Path::new("log");
+    if !log_dir.exists() {
+        std::fs::create_dir(log_dir).unwrap();
+    }
+
+    let filename = log_dir.join(format!(
+        "{}_fail.html",
+        chrono::Utc::now().format("%Y-%m-%d_%H%M%S")
+    ));
+
+    std::fs::File::create(filename).unwrap();
 }
 
 #[test]
