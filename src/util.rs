@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use chrono::TimeZone;
+use chrono::{DateTime, TimeZone};
 use rand::Rng;
 use reqwest::header::HeaderMap;
 use std::time::Duration;
@@ -115,17 +115,9 @@ pub fn check_limit_and_block(
         reset,
     }: RateLimit,
 ) {
-    // github 给的时间戳是加州西 7 区的时间，所以需要转换一下。
-    let time_zone = chrono::FixedOffset::west_opt(7 * 3600).unwrap();
-
-    // 限制说明：
-    //  No more than 60 seconds of this CPU time may be for the GraphQL API.
-    //      You can roughly estimate the CPU time by measuring the total response time for your API requests.
     log::info!(
-        "limit: ({used}/{limit}) remaining: {remaining} reset(github 本部时间):  {reset_time}",
-        reset_time = time_zone
-            .from_utc_datetime(&chrono::NaiveDateTime::from_timestamp_opt(reset, 0).unwrap())
-            .to_rfc3339(),
+        "limit: ({used}/{limit}) remaining: {remaining} 剩余重置时间： {reset_time} s",
+        reset_time = calc_github_reset_diff(reset),
     );
 
     // TODO 我感觉请求间隔时间放在这个函数其实已经不合适了，需要调整到 graphql_client_ext 文件中去更好。
@@ -144,4 +136,11 @@ pub fn check_limit_and_block(
         log::info!("开始休眠随机间隔 {sleep_millis}ms");
         thread::sleep(Duration::from_millis(sleep_millis));
     }
+}
+
+fn calc_github_reset_diff(end_timestamp: i64) -> i64 {
+    // github 给的时间戳是加州西 7 区的时间，所以需要转换一下。
+    let time_zone = chrono::FixedOffset::west_opt(7 * 3600).unwrap();
+    let now_timestamp = chrono::Utc::now().with_timezone(&time_zone).timestamp();
+    (end_timestamp - now_timestamp).max(0)
 }
