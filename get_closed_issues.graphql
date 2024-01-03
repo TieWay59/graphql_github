@@ -19,9 +19,18 @@ query GetClosedIssues(
         stateReason
         number
         url
+        title
+        author {
+          __typename
+          login
+        }
         bodyText
         comments(first: 50) {
           nodes {
+            author {
+              __typename
+              login
+            }
             bodyText
           }
         }
