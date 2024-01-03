@@ -1,5 +1,7 @@
 # 数据采集
 
+- github token 获取 [Fine-grained Personal Access Tokens (github.com)](https://github.com/settings/tokens?type=beta)
+
 - 结合 graphql 框架
 
   - 放弃 [Introspecting an API - Cynic - A GraphQL Client For Rust (cynic-rs.dev)](https://cynic-rs.dev/schemas/introspection) 设计的太过复杂。

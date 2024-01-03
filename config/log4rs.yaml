@@ -3,22 +3,15 @@ refresh_rate: 5 seconds
 appenders:
   stdout:
     kind: console
+    encoder:
+      pattern: "{d(%Y-%m-%d %H:%M:%S)} [{l}] [{t}] {m}{n}"
   requests:
     kind: file
     path: "log/requests.log"
     encoder:
-      pattern: "{d} - {m}{n}"
+      pattern: "{d(%Y-%m-%d %H:%M:%S)} [{l}] [{t}] {m}{n}"
 root:
   level: info
   appenders:
     - stdout
     - requests
-# TODO 下面这些可能是不必要的
-loggers:
-  app::backend::db:
-    level: info
-  app::requests:
-    level: info
-    appenders:
-      - requests
-    additive: false
