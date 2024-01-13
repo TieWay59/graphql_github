@@ -1,10 +1,8 @@
 mod config;
 mod graphql_client_ext;
-mod log;
 mod query;
 mod util;
 
-use ::log::info;
 use anyhow::{Context, Ok, Result};
 use reqwest::{blocking, header};
 use std::fs::File;
@@ -78,7 +76,7 @@ fn main() -> Result<()> {
                     );
                     continue;
                 } else {
-                    info!(
+                    log::info!(
                         "读取到状态 last_step: {:?}, last_cursor: {:?}",
                         last_step, last_cursor
                     );
